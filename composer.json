@@ -1,0 +1,34 @@
+{
+  "name": "zhiyang/php-crawler",
+  "description": "Lightweight web crawler for php",
+  "minimum-stability": "stable",
+  "keywords": [
+    "crawler",
+    "web crawler",
+    "php crawler"
+  ],
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "zhiyang",
+      "email": "zhiyanglee@foxmail.com"
+    }
+  ],
+  "require": {
+    "predis/predis": "^1.0",
+    "guzzlehttp/guzzle": "~6.0",
+    "symfony/dom-crawler": "^3.2",
+    "symfony/css-selector": "^3.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Zhiyang\\Crawler\\": "src/"
+    }
+  },
+  "repositories": {
+    "packagist": {
+      "type": "composer",
+      "url": "https://packagist.phpcomposer.com"
+    }
+  }
+}
