@@ -1,0 +1,11 @@
+/.idea
+/vendor
+/src/html_cache
+/demo/html_cache
+/node_modules
+.env
+.env-production
+public/js/
+public/css/
+public/fonts/
+public/images/
