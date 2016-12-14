@@ -197,16 +197,23 @@ class HttpDownloader
         }
 
         $response = $this->sendWithoutCache($method, $uri, $options);
+        $content = $response->getBody()->getContents();
 
         //写入缓存
         if ($response->getStatusCode() == 200 && $this->enableCache) {
 
-            $this->cacheFilePutContentWithLock($cacheFilePath, $response->getBody());
+            $this->cacheFilePutContentWithLock($cacheFilePath, $content);
             $this->cacheFilePutContentWithLock($cacheHeadFilePath, serialize($response->getHeaders()));
 
         }
 
-        return $response;
+        return new Response(
+            $response->getStatusCode(),
+            $response->getHeaders(),
+            $content,
+            $response->getProtocolVersion(),
+            $response->getReasonPhrase()
+        );
 
     }
 
