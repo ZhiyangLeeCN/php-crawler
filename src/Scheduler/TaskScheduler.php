@@ -31,11 +31,28 @@ interface TaskScheduler
     public function next($ignoreTarget = false);
 
     /**
+     *  在指定秒数内不断尝试获取任务，超时则返回null
+     *
+     * @param int $second
+     * @param bool $ignoreTarget
+     * @return Task|null
+     */
+    public function tryNext($second, $ignoreTarget = false);
+
+    /**
      *  获取下一个目标任务
      *
      * @return Task|null
      */
     public function nextTarget();
+
+    /**
+     *  在指定秒数内不断尝试获取目标任务，超时返回null
+     *
+     * @param int $second
+     * @return mixed
+     */
+    public function tryNextTarget($second);
 
     /**
      *  添加一个抓取任务
@@ -52,5 +69,13 @@ interface TaskScheduler
      * @return bool
      */
     public function pushTarget(Task $task);
+
+    /**
+     *  标记这个URL已经抓取过(方便urlIsDuplicated去重)
+     *
+     * @param  string $url
+     *
+     */
+    public function finished($url);
 
 }

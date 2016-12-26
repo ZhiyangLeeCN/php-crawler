@@ -241,11 +241,17 @@ class RedisTaskScheduler implements  TaskScheduler
      */
     public function next($ignoreTarget = false)
     {
-        $task = $this->redisClient->lpop($this->getIteratorQueueKeyName());
+        $task = null;
+
+        if (!$ignoreTarget) {
+
+            $task = $this->redisClient->lpop($this->getTargetIteratorQueueKeyName());
+
+        }
 
         if (is_null($task)) {
 
-            $task = $this->redisClient->lpop($this->getTargetIteratorQueueKeyName());
+            $task = $this->redisClient->lpop($this->getIteratorQueueKeyName());
 
         }
 
@@ -272,6 +278,36 @@ class RedisTaskScheduler implements  TaskScheduler
     }
 
     /**
+     *  在指定秒数内不断尝试获取任务，超时则返回null
+     *
+     * @param int $second
+     * @param bool $ignoreTarget
+     * @return Task|null
+     */
+    public function tryNext($second, $ignoreTarget = false)
+    {
+        $secondCount = 0;
+        while ($secondCount < $second) {
+
+            $task = $this->next($ignoreTarget);
+            if (is_null($task)) {
+
+                sleep(1);
+
+            } else {
+
+                return $task;
+
+            }
+
+            $secondCount++;
+
+        }
+
+        return null;
+    }
+
+    /**
      *  获取下一个目标任务
      *
      * @return Task|null
@@ -294,6 +330,35 @@ class RedisTaskScheduler implements  TaskScheduler
     }
 
     /**
+     *  在指定秒数内不断尝试获取目标任务，超时返回null
+     *
+     * @param int $second
+     * @return mixed
+     */
+    public function tryNextTarget($second)
+    {
+        $secondCount = 0;
+        while ($secondCount < $second) {
+
+            $task = $this->nextTarget();
+            if (is_null($task)) {
+
+                sleep(1);
+
+            } else {
+
+                return $task;
+
+            }
+
+            $secondCount++;
+
+        }
+
+        return null;
+    }
+
+    /**
      *  添加一个抓取任务
      *
      * @param Task $task
@@ -309,7 +374,6 @@ class RedisTaskScheduler implements  TaskScheduler
 
             $this->incrementLinksCount();
             $this->incrementLinksSum();
-            $this->historySetAdd($task->getUrl());
             $this->setLastPushDateTime();
 
             return true;
@@ -339,7 +403,6 @@ class RedisTaskScheduler implements  TaskScheduler
 
             $this->incrementTargetLinksCount();
             $this->incrementTargetLinksSum();
-            $this->historySetAdd($task->getUrl());
             $this->setLastPushDateTime();
 
             return true;
@@ -351,4 +414,16 @@ class RedisTaskScheduler implements  TaskScheduler
         }
 
     }
+
+    /**
+     *  标记这个URL已经抓取过(方便urlIsDuplicated去重)
+     *
+     * @param  string $url
+     *
+     */
+    public function finished($url)
+    {
+        $this->historySetAdd($url);
+    }
+
 }
