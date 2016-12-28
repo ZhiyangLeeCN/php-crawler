@@ -114,7 +114,18 @@ for ($i = 0; $i < 4; $i++) {
 
     $pid = pcntl_fork();
 
-    if ($pid) {
+    if ($pid == -1) {
+
+        echo "pcntl_fork error!\n";
+
+    } else if ($pid) {
+
+        //等待子进程完成
+        pcntl_wait($status);
+
+        echo "pid:{$pid} finished !\n";
+
+    } else {
 
         $scheduler = new RedisTaskScheduler("csdn-blog", "tcp://127.0.0.1:6379");
         $scheduler->initialize();
@@ -125,11 +136,11 @@ for ($i = 0; $i < 4; $i++) {
 
             $scheduler->push(new Task("http://blog.csdn.net/"));
 
-            echo "pid:{$pid} add seed page\n";
+            echo "add seed page\n";
 
         }
 
-        echo "child process start pid:" . $pid . "\n";
+        echo "crawler process start\n";
 
         //开始迭代链接进行抓取
         while (($task = $scheduler->tryNext(5)) != null) {
@@ -138,7 +149,7 @@ for ($i = 0; $i < 4; $i++) {
             //判断链接是否已经抓取过了
             if ($scheduler->urlIsDuplicated($url)) {
 
-                echo "pid:{$pid} url:{$url} skip!\n";
+                echo "url:{$url} skip!\n";
 
             } else {
 
@@ -164,10 +175,10 @@ for ($i = 0; $i < 4; $i++) {
 
                     $title = $htmlDom->filter('title')->html();
 
-                    echo "pid:{$pid} title:" . $title . "\n";
+                    echo "title:" . $title . "\n";
 
                 }
-                
+
                 //标记URL已经完成，方便urlIsDuplicated判断去重
                 $scheduler->finished($url);
 
@@ -175,9 +186,98 @@ for ($i = 0; $i < 4; $i++) {
 
         }
 
+
     }
 
 }
+```
 
-echo "finished !\n";
+同样你还可以使用[swoole](https://github.com/swoole/swoole-src)扩展提供的swoole_process来进行多进程的抓取
+```php
+<?php
+
+require __DIR__ . '/vendor/autoload.php';
+
+date_default_timezone_set('PRC');
+
+use Zhiyang\Crawler\Task;
+use Zhiyang\Crawler\HttpDownloader;
+use Zhiyang\Crawler\Scheduler\Redis\RedisTaskScheduler;
+
+use Symfony\Component\DomCrawler\Crawler as HtmlDom;
+
+for ($i = 0; $i < 4; $i++) {
+
+    $crawler_process = new swoole_process(function ($worker) use($i) {
+
+        $pid = $worker->pid;
+        $worker->name("crawler process");
+        $scheduler = new RedisTaskScheduler("csdn-blog", "tcp://127.0.0.1:6379");
+        $httpDownloader = new HttpDownloader();
+
+        //只让第一个创建的进程添加种子页面
+        if ($i == 0) {
+
+            $scheduler->push(new Task("http://blog.csdn.net/"));
+
+            echo "pid:{$pid} add seed page\n";
+
+        }
+
+        echo "process start pid:" . $pid . "\n";
+
+        //开始迭代链接进行抓取
+        while (($task = $scheduler->tryNext(5)) != null) {
+
+            $url = $task->getUrl();
+            //判断链接是否已经抓取过了
+            if ($scheduler->urlIsDuplicated($url)) {
+
+                echo "pid:{$pid} url:{$url} skip!\n";
+
+            } else {
+
+                //获取任务指定的URL的响应内容
+                $response = $httpDownloader->send('GET', $url);
+                $body = $response->getBody()->getContents();
+                $htmlDom = new HtmlDom($body, $task->getUrl(), $task->getUrlHost());
+
+                //如果是首页，只获取文章详情页链接
+                if (preg_match("/http:\\/\\/blog.csdn.net\\//", $task->getUrl())) {
+
+                    $htmlDom->filterXPath('//h3[@class="tracking-ad"]')->filter("a")->each(function(HtmlDom $node, $index) use($scheduler) {
+
+                        $scheduler->pushTarget(new Task($node->attr('href')));
+
+                    });
+
+                }
+
+                //如果是文章详情页，那么就打印每个文章详情页的标题
+                if (preg_match("/http:\\/\\/blog.csdn.net\\/\w+\\/article\\/details\\/\d+/", $task->getUrl())) {
+
+                    $title = $htmlDom->filter('title')->html();
+
+                    echo "pid:{$pid} title:" . $title . "\n";
+
+                }
+
+                $scheduler->finished($url);
+
+            }
+
+        }
+
+    });
+
+    //启动进程
+    $pid = $crawler_process->start();
+
+    echo "pid{$pid} start!\n";
+
+    swoole_process::wait();
+
+    echo "pid: {$pid} finished\n";
+
+}
 ```
